@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Clientes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111010">
+<meta name="description" content="Registro de clientes de feria · Metalúrgica Gerbaudo">
+
+<!-- Android / Chrome -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- iPhone / Safari -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Clientes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+
+<style>
+  :root { --top: #111010; --bottom: #f1f0f0; }
+  @media (prefers-color-scheme: dark) { :root { --bottom: #0b0a0a; } }
+  html, body { margin: 0; height: 100%; background: var(--top); overflow: hidden; overscroll-behavior: none; }
+  body {
+    display: flex; flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  #app { flex: 1; width: 100%; border: 0; display: block; background: var(--bottom); }
+  #bottom { height: env(safe-area-inset-bottom, 0px); background: var(--bottom); flex: none; }
+
+  /* Pantalla de carga con el logo */
+  #splash {
+    position: fixed; inset: 0; z-index: 2; background: #ffffff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #151212;
+    transition: opacity .35s ease;
+  }
+  #splash img { width: 150px; height: auto; }
+  #splash .bar { width: 120px; height: 4px; border-radius: 4px; background: #eee; overflow: hidden; }
+  #splash .bar i { display: block; height: 100%; width: 40%; background: #c8102e; border-radius: 4px; animation: load 1.1s ease-in-out infinite; }
+  #splash p { margin: 0; font-size: 14px; color: #6c6363; }
+  #splash.gone { opacity: 0; pointer-events: none; }
+  @keyframes load { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+
+  /* Aviso para instalar (solo cuando se abre desde el navegador) */
+  #install {
+    position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 3;
+    background: #111010; color: #fff; border-radius: 16px; padding: 14px 16px;
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    display: flex; gap: 12px; align-items: center;
+  }
+  #install img { width: 44px; height: 44px; border-radius: 10px; background: #fff; flex: none; }
+  #install div { flex: 1; min-width: 0; }
+  #install b { display: block; }
+  #install button { background: #c8102e; color: #fff; border: 0; border-radius: 10px; padding: 10px 14px; font: 600 14px system-ui, sans-serif; flex: none; }
+  #install .x { background: transparent; color: #ffffffaa; padding: 6px 8px; font-size: 20px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <img src="icons/logo-header.png" alt="Gerbaudo">
+  <div class="bar"><i></i></div>
+  <p id="splashMsg">Abriendo Clientes…</p>
+</div>
+
+<iframe id="app" title="Clientes" allow="camera; clipboard-write"></iframe>
+<div id="bottom"></div>
+
+<div id="install" hidden>
+  <img src="icons/icon-192.png" alt="">
+  <div><b>Instalá Clientes</b><span id="installTxt"></span></div>
+  <button id="installBtn" type="button" hidden>Instalar</button>
+  <button class="x" id="installClose" type="button" aria-label="Cerrar">×</button>
+</div>
+
+<script>
+  /* ===== PEGÁ ACÁ EL LINK DE TU APLICACIÓN WEB DE APPS SCRIPT (el que termina en /exec) ===== */
+  var APP_URL = "PEGAR_ACA_EL_LINK_EXEC";
+  /* ======================================================================================== */
+
+  var frame = document.getElementById("app");
+  var splash = document.getElementById("splash");
+  function hideSplash() { splash.classList.add("gone"); setTimeout(function () { splash.hidden = true; }, 400); }
+
+  if (APP_URL.indexOf("script.google.com") === -1) {
+    document.getElementById("splashMsg").textContent = "Falta configurar el link de la app en index.html";
+    document.querySelector("#splash .bar").hidden = true;
+  } else {
+    frame.addEventListener("load", function () { setTimeout(hideSplash, 600); });
+    setTimeout(hideSplash, 12000);
+    frame.src = APP_URL;
+  }
+
+  /* Service worker: necesario para que Android ofrezca "Instalar app" */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  }
+
+  /* Ayuda para instalar, solo si NO está abierta como app */
+  var standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  var closed = false; try { closed = localStorage.getItem("installClosed") === "1"; } catch (e) {}
+  var box = document.getElementById("install"), txt = document.getElementById("installTxt"), btn = document.getElementById("installBtn");
+  document.getElementById("installClose").onclick = function () { box.hidden = true; try { localStorage.setItem("installClosed", "1"); } catch (e) {} };
+
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!standalone && !closed) {
+    if (isIOS) {
+      txt.textContent = " Tocá Compartir (cuadrado con flecha) y después “Agregar a inicio”.";
+      setTimeout(function () { box.hidden = false; }, 1500);
+    } else {
+      var deferred = null;
+      window.addEventListener("beforeinstallprompt", function (e) {
+        e.preventDefault(); deferred = e;
+        txt.textContent = " Agregala a la pantalla de inicio como una app.";
+        btn.hidden = false; box.hidden = false;
+      });
+      btn.onclick = function () {
+        if (!deferred) return;
+        deferred.prompt();
+        deferred.userChoice.then(function () { box.hidden = true; deferred = null; });
+      };
+      setTimeout(function () {
+        if (box.hidden && !deferred && /android/i.test(navigator.userAgent)) {
+          txt.textContent = " Tocá el menú ⋮ de Chrome y elegí “Agregar a la pantalla principal” o “Instalar app”.";
+          box.hidden = false;
+        }
+      }, 4000);
+    }
+  }
+</script>
+</body>
+</html>
